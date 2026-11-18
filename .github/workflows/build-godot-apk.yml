@@ -64,12 +64,12 @@ jobs:
 
       - name: Export Android APK
         run: |
-          mkdir -p build
+          mkdir -p godot/build
           timeout 12m godot --headless --path godot --verbose --export-debug "Android" build/Qabilat-Al-Tanja-3D.apk
-          test -s build/Qabilat-Al-Tanja-3D.apk
+          test -s godot/build/Qabilat-Al-Tanja-3D.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: Qabilat-Al-Tanja-3D-APK
-          path: build/Qabilat-Al-Tanja-3D.apk
+          path: godot/build/Qabilat-Al-Tanja-3D.apk
           if-no-files-found: error

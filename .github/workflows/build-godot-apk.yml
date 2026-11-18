@@ -9,24 +9,51 @@ on:
 
 jobs:
   android:
-    runs-on: ubuntu-latest
-        steps:
+    runs-on: ubuntu-22.04
+    steps:
       - uses: actions/checkout@v4
-      - name: Prepare Godot and Android export tools
-        uses: firebelley/godot-export@v6.0.0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
-          godot_version: 4.3.0
-          export_type: release
-          preset: Android
-          project_path: godot
-          archive_output: false
-          android_export: true
-      - name: Export Android APK
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android platform
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Download Godot 4.3 and Android export templates
+        run: |
+          mkdir -p "$HOME/godot"
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          sudo install "$HOME/godot/Godot_v4.3-stable_linux.x86_64" /usr/local/bin/godot
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz -O /tmp/templates.tpz
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.3.stable"
+          unzip -q /tmp/templates.tpz -d /tmp/godot-templates
+          cp /tmp/godot-templates/templates/* "$HOME/.local/share/godot/export_templates/4.3.stable/"
+
+      - name: Configure Android build
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          keytool -genkeypair -v -keystore "$HOME/.config/godot/android_debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+
+      - name: Import project and export APK
         run: |
           mkdir -p build
           cd godot
-          godot --headless --verbose --editor --quit
+          godot --headless --editor --path . --quit
           godot --headless --path . --export-debug "Android" ../build/Qabilat-Al-Tanja-3D.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: Qabilat-Al-Tanja-3D-APK

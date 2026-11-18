@@ -26,13 +26,13 @@ func _ready() -> void:
 	tank_model_scene = load("res://assets/quaternius-tank.glb") as PackedScene
 	guard_tower_scene = load("res://assets/quaternius-guard-tower.glb") as PackedScene
 	for path in ["res://assets/b_small.glb", "res://assets/b_medium.glb", "res://assets/b_large.glb"]:
-		var scene := load(path) as PackedScene
-		if scene != null:
-			building_models.append(scene)
+		var building_scene := load(path) as PackedScene
+		if building_scene != null:
+			building_models.append(building_scene)
 	for path in ["res://assets/tree1.glb", "res://assets/tree2.glb", "res://assets/tree3.glb"]:
-		var scene := load(path) as PackedScene
-		if scene != null:
-			tree_models.append(scene)
+		var tree_scene := load(path) as PackedScene
+		if tree_scene != null:
+			tree_models.append(tree_scene)
 	_build_world()
 	_build_camera()
 	_build_armies()

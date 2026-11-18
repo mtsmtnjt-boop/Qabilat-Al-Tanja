@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#101a1c"><title>قبيلة ال طنجة</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101a1c;color:#f6e9c9;font-family:Tahoma,Arial,sans-serif;touch-action:none}
+#game{position:absolute;inset:0;width:100%;height:100%;background:#283b30}
+#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:8px;gap:8px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}.panel{pointer-events:auto;background:linear-gradient(145deg,#172326ee,#0c1415ee);border:1px solid #b18b4c;border-radius:12px;padding:8px 11px;box-shadow:0 4px 18px #0008}
+.brand{font-weight:bold;font-size:clamp(14px,2.5vw,22px);color:#f2d18b}.stats{display:flex;gap:8px;flex-wrap:wrap;font-size:13px}.stat{white-space:nowrap}.gold{color:#ffd36e}.red{color:#ff8585}.green{color:#8ee6a0}
+#banner{font-size:12px;color:#d7c7a1;margin-top:4px}
+#side{align-self:flex-start;display:grid;gap:6px;width:min(180px,34vw)}
+button{font:inherit;color:#f8edcf;background:linear-gradient(#58604a,#303b31);border:1px solid #c09a5a;border-radius:9px;padding:9px 7px;font-weight:bold;cursor:pointer;pointer-events:auto;box-shadow:0 2px 5px #0008}
+button:active{transform:scale(.97);filter:brightness(1.25)}button:disabled{opacity:.4}
+#bottom{display:flex;justify-content:space-between;align-items:end;gap:8px}
+#actions{display:flex;gap:6px;flex-wrap:wrap;max-width:72%}#actions button{min-width:82px;font-size:12px}
+#hint{max-width:210px;font-size:11px;line-height:1.5;color:#e6d6b1}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#07100edb;z-index:5;padding:16px}
+.modal{width:min(520px,96vw);max-height:92vh;overflow:auto;text-align:center;background:linear-gradient(145deg,#27332c,#111a1a);border:2px solid #b48b4b;border-radius:18px;padding:22px;box-shadow:0 20px 70px #000}
+h1{font-size:clamp(24px,5vw,40px);color:#f4d18a;margin:4px}.flag{display:inline-block;background:#080b0b;border:1px solid #777;padding:10px 24px;margin:12px;font-size:20px;letter-spacing:1px}.modal p{line-height:1.8;color:#d7d1bd;font-size:14px}
+#toast{position:absolute;top:22%;left:50%;transform:translateX(-50%);background:#111d;border:1px solid #d0a45e;padding:8px 14px;border-radius:9px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:4}
+@media(max-width:600px){.stats{font-size:11px;gap:5px}.panel{padding:6px 8px}#side{width:112px}#actions{max-width:100%}#actions button{min-width:68px;padding:8px 4px;font-size:10px}#hint{display:none}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+ <div class="top">
+  <div class="panel"><div class="brand">⚔ قبيلة ال طنجة</div><div class="stats"><span class="stat gold">◆ <b id="money">500</b></span><span class="stat green">✚ <b id="food">300</b></span><span class="stat">👥 <b id="pop">0/30</b></span><span class="stat">🏆 <b id="score">0</b></span></div><div id="banner">راية معتصم الموالي — ساحة المعركة</div></div>
+  <div class="panel" id="side"><button id="pause">Ⅱ إيقاف</button><button id="speed">السرعة ×1</button><button id="sound">🔊 الصوت</button></div>
+ </div>
+ <div id="bottom"><div id="actions"><button data-act="worker">👷 عامل 80</button><button data-act="soldier">⚔ مقاتل 120</button><button data-act="archer">🏹 رامٍ 150</button><button data-act="tank">🛡 مدرّعة 260</button><button data-act="tower">🗼 برج 180</button><button data-act="repair">🔧 إصلاح</button><button data-act="attack">⚔ هجوم</button></div><div class="panel" id="hint">المس وحداتك لتحديدها، ثم المس الأرض لإرسالها. اجمع الموارد واهزم قواعد الخصوم.</div></div>
+</div>
+<div id="toast"></div>
+<div id="overlay"><div class="modal"><h1>قبيلة ال طنجة</h1><div class="flag">معتصم الموالي</div><p>ابنِ جيشك، اجمع الذهب والطعام، ودافع عن قاعدتك. أمامك خمسة فصائل معادية، وقبيلتك صاحبة أقوى المقاتلين.</p><p>اسحب إصبعك على الخريطة لتحريك الكاميرا. المس وحداتك ثم المس مكاناً لإصدار أمر الحركة. اقترب من العدو واضغط هجوم.</p><button id="start" style="font-size:18px;padding:13px 32px">ابدأ المعركة</button></div></div>
+<script>
+(()=>{
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let W=0,H=0,dpr=1,cam={x:0,y:0},units=[],buildings=[],enemies=[],particles=[],money=500,food=300,score=0,paused=false,speed=1,selected=[],tick=0,started=false,gameover=false,drag=null,last=0,muted=false;
+const factions=['الطنجة','الصقور','الذئاب','العاصفة','الرعد','الفرسان'];
+const colors=['#d8b36c','#bd6653','#7b8cb5','#8eaa72','#ad79a6','#c08b55'];
+const world={w:1800,h:1250};
+const rand=(a,b)=>a+Math.random()*(b-a),dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);cam.x=Math.max(0,Math.min(world.w-W,cam.x));cam.y=Math.max(0,Math.min(world.h-H,cam.y))}
+addEventListener('resize',resize);resize();
+function toast(t){let e=document.getElementById('toast');e.textContent=t;e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.opacity=0,1800)}
+function speak(t){if(muted||!('speechSynthesis'in window))return;try{speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(t);u.lang='ar';u.rate=.92; speechSynthesis.speak(u)}catch(e){}}
+function unit(type,team,x,y){let data={worker:[65,0,0,24],soldier:[125,18,1.0,35],archer:[90,23,2.1,31],tank:[390,42,1.4,54],enemy:[105,15,1.1,33]};let d=data[type]||data.soldier;return {type,team,x,y,hp:d[0],max:d[0],dmg:d[1],range:d[2],speed:d[3],target:null,order:null,cd:0,selected:false}}
+function building(type,team,x,y){let d={hq:[1100,0,40],barracks:[500,0,30],tower:[360,28,26],mine:[300,0,22] }[type];return {type,team,x,y,hp:d[0],max:d[0],dmg:d[1],range:d[2],cd:0}}
+function init(){units=[];buildings=[];enemies=[];particles=[];money=500;food=300;score=0;tick=0;gameover=false;selected=[];cam={x:0,y:0};
+ buildings.push(building('hq',0,280,300),building('barracks',0,400,410),building('mine',0,160,410));
+ for(let i=0;i<5;i++){let a=rand(700,1650),b=rand(120,1120);enemies.push({team:i+1,x:a,y:b,hp:600,max:600,cd:0,level:i});buildings.push(building('hq',i+1,a,b),building('barracks',i+1,a+70,b+65));for(let j=0;j<2;j++)units.push(unit('enemy',i+1,a+rand(-90,90),b+rand(-80,80)))}
+ units.push(unit('worker',0,330,350),unit('worker',0,350,365),unit('soldier',0,310,390),unit('soldier',0,335,405),unit('archer',0,365,390),unit('tank',0,260,420));
+ updateHud();cam.x=0;cam.y=0;
+}
+function updateHud(){document.getElementById('money').textContent=Math.floor(money);document.getElementById('food').textContent=Math.floor(food);document.getElementById('pop').textContent=units.filter(u=>u.team===0).length+'/30';document.getElementById('score').textContent=score}
+function worldPos(e){return {x:e.clientX+cam.x,y:e.clientY+cam.y}}
+function hitUnit(p){return units.find(u=>u.team===0&&Math.hypot(u.x-p.x,u.y-p.y)<24)}
+canvas.addEventListener('pointerdown',e=>{if(!started||gameover)return;canvas.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y,moved:false,p:e.pointerId}});
+canvas.addEventListener('pointermove',e=>{if(!drag||drag.p!==e.pointerId)return;let dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>8)drag.moved=true;if(drag.moved){cam.x=Math.max(0,Math.min(world.w-W,drag.cx-dx));cam.y=Math.max(0,Math.min(world.h-H,drag.cy-dy))}});
+canvas.addEventListener('pointerup',e=>{if(!drag)return;let d=drag;drag=null;if(d.moved)return;let p=worldPos(e),u=hitUnit(p);if(u){selected=[u];toast('تم تحديد '+nameUnit(u.type));return}if(selected.length){let enemy=units.find(x=>x.team!==0&&dist(x,p)<35);if(enemy){selected.forEach(x=>x.order={x:enemy.x,y:enemy.y,target:enemy});toast('تم تحديد هدف للهجوم')}else selected.forEach(x=>x.order={x:p.x,y:p.y,target:null});return}let b=buildings.find(x=>x.team===0&&Math.hypot(x.x-p.x,x.y-p.y)<40);if(b)toast(nameBuilding(b.type)+' — '+Math.ceil(b.hp/b.max*100)+'%')});
+function nameUnit(t){return {worker:'العامل',soldier:'المقاتل',archer:'الرامي',tank:'المدرعة',enemy:'جندي العدو'}[t]||t}
+function nameBuilding(t){return {hq:'مقر القيادة',barracks:'الثكنة',tower:'برج دفاعي',mine:'منجم'}[t]||t}
+function spawn(t){if(gameover)return;let costs={worker:80,soldier:120,archer:150,tank:260};let cost=costs[t];if(units.filter(u=>u.team===0).length>=30){toast('وصلت للحد الأقصى للجيش');return}if(money<cost){toast('الذهب لا يكفي');return}money-=cost;let x=rand(250,450),y=rand(320,470);units.push(unit(t,0,x,y));updateHud();toast('تم تدريب '+nameUnit(t));speak('تم تدريب '+nameUnit(t))}
+document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{let a=b.dataset.act;if(['worker','soldier','archer','tank'].includes(a))spawn(a);if(a==='tower'){if(money<180){toast('الذهب لا يكفي');return}money-=180;buildings.push(building('tower',0,rand(220,450),rand(430,560)));toast('تم بناء برج دفاعي')}if(a==='repair'){let b=buildings.filter(x=>x.team===0&&x.hp<x.max).sort((a,b)=>a.hp/a.max-b.hp/b.max)[0];if(!b||money<60){toast('لا يوجد مبنى يحتاج الإصلاح أو الذهب لا يكفي');return}money-=60;b.hp=Math.min(b.max,b.hp+180);toast('تم إصلاح المبنى')}if(a==='attack'){if(!selected.length){selected=units.filter(u=>u.team===0&&u.type!=='worker');toast('تم تحديد الجيش المقاتل')}else{let target=enemies.filter(x=>x.hp>0).sort((a,b)=>dist(a,{x:280,y:300})-dist(b,{x:280,y:300}))[0];if(target)selected.forEach(u=>u.order={x:target.x,y:target.y,target});toast('إلى الأمام يا أبطال ال طنجة!');speak('إلى الأمام يا أبطال ال طنجة')}}});
+document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'▶ متابعة':'Ⅱ إيقاف'};
+document.getElementById('speed').onclick=()=>{speed=speed===1?2:speed===2?3:1;document.getElementById('speed').textContent='السرعة ×'+speed};
+document.getElementById('sound').onclick=()=>{muted=!muted;document.getElementById('sound').textContent=muted?'🔇 الصوت':'🔊 الصوت';if(!muted)speak('أهلاً بك في معركة قبيلة ال طنجة')};
+document.getElementById('start').onclick=()=>{document.getElementById('overlay').style.display='none';started=true;init();speak('بسم الله، بدأت معركة قبيلة ال طنجة')};
+function circle(x,y,r,c){ctx.beginPath();ctx.arc(x-cam.x,y-cam.y,r,0,Math.PI*2)}
+function drawGround(){ctx.fillStyle='#536447';ctx.fillRect(0,0,W,H);let tile=80;for(let x=-((cam.x)%tile);x<W;x+=tile)for(let y=-((cam.y)%tile);y<H;y+=tile){let gx=Math.floor((x+cam.x)/tile),gy=Math.floor((y+cam.y)/tile);ctx.fillStyle=(gx+gy)%2?'#596d4d':'#526648';ctx.fillRect(x,y,tile,tile);ctx.strokeStyle='#71805a55';ctx.strokeRect(x,y,tile,tile)}
+ for(let i=0;i<100;i++){let x=(i*173+37)%world.w-cam.x,y=(i*97+61)%world.h-cam.y;if(x>-20&&x<W+20&&y>-20&&y<H+20){ctx.fillStyle=i%3?'#344b35':'#7b8051';ctx.beginPath();ctx.arc(x,y,3+i%4,0,7);ctx.fill()}}
+ ctx.strokeStyle='#e1d2a533';ctx.lineWidth=3;ctx.strokeRect(-cam.x,-cam.y,world.w,world.h)}
+function drawBuilding(b){let x=b.x-cam.x,y=b.y-cam.y;if(x<-100||y<-100||x>W+100||y>H+100)return;let c=colors[b.team];ctx.save();ctx.translate(x,y);
+ ctx.fillStyle='#0006';ctx.beginPath();ctx.ellipse(0,18,45,20,0,0,7);ctx.fill();
+ if(b.type==='hq'){ctx.fillStyle=b.team===0?'#bca16d':'#777';ctx.fillRect(-34,-28,68,48);ctx.fillStyle='#473c2a';ctx.beginPath();ctx.moveTo(-42,-28);ctx.lineTo(0,-58);ctx.lineTo(42,-28);ctx.fill();ctx.fillStyle=c;ctx.fillRect(-4,-76,3,22);ctx.fillStyle=b.team===0?'#080b0b':c;ctx.fillRect(-1,-75,28,15);if(b.team===0){ctx.fillStyle='#fff';ctx.font='8px Tahoma';ctx.fillText('طنجة',1,-65)}}
+ else if(b.type==='barracks'){ctx.fillStyle='#8b7550';ctx.fillRect(-29,-20,58,36);ctx.fillStyle='#bba06a';ctx.beginPath();ctx.moveTo(-35,-20);ctx.lineTo(0,-43);ctx.lineTo(35,-20);ctx.fill()}
+ else if(b.type==='tower'){ctx.fillStyle='#9c987d';ctx.fillRect(-15,-42,30,56);ctx.fillStyle='#d2c39b';ctx.fillRect(-21,-48,42,12);ctx.fillStyle=c;ctx.fillRect(-3,-65,3,18)}
+ else{ctx.fillStyle='#6c6450';ctx.fillRect(-24,-13,48,26);ctx.fillStyle='#e4bc57';ctx.fillRect(-6,-24,12,12)}
+ ctx.fillStyle='#241e18';ctx.fillRect(-28,27,56,5);ctx.fillStyle=b.team===0?'#71d17e':'#e36d5c';ctx.fillRect(-28,27,56*Math.max(0,b.hp/b.max),5);ctx.restore()}
+function drawUnit(u){let x=u.x-cam.x,y=u.y-cam.y;if(x<-50||y<-50||x>W+50||y>H+50)return;ctx.save();ctx.translate(x,y);ctx.fillStyle='#0006';ctx.beginPath();ctx.ellipse(0,8,13,6,0,0,7);ctx.fill();let c=u.team===0?'#dfc27d':colors[u.team];if(u.type==='tank'){ctx.fillStyle='#414d43';ctx.fillRect(-17,-9,34,19);ctx.fillStyle=c;ctx.fillRect(-10,-7,20,13);ctx.fillRect(0,-4,20,4)}else{ctx.fillStyle=c;ctx.beginPath();ctx.arc(0,-3,u.type==='worker'?8:10,0,7);ctx.fill();ctx.fillStyle='#252b26';ctx.fillRect(-7,3,14,7);ctx.fillStyle='#eee0bc';ctx.fillRect(-3,-13,6,5);if(u.type==='archer'){ctx.strokeStyle='#eee0bc';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(8,-8);ctx.lineTo(16,-16);ctx.stroke()}if(u.type==='soldier'){ctx.strokeStyle='#ddd';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(8,-7);ctx.lineTo(15,-15);ctx.stroke()}}
+ if(selected.includes(u)){ctx.strokeStyle='#fff2a2';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,18,0,7);ctx.stroke()}
+ ctx.fillStyle='#201a14';ctx.fillRect(-12,-20,24,3);ctx.fillStyle=u.team===0?'#8be58b':'#ff7770';ctx.fillRect(-12,-20,24*Math.max(0,u.hp/u.max),3);ctx.restore()}
+function draw(){drawGround();buildings.forEach(drawBuilding);units.forEach(drawUnit);enemies.forEach(e=>{let x=e.x-cam.x,y=e.y-cam.y;if(x<-80||y<-80||x>W+80||y>H+80)return;ctx.fillStyle='#201914';ctx.fillRect(x-26,y-54,52,5);ctx.fillStyle='#ee6b61';ctx.fillRect(x-26,y-54,52*Math.max(0,e.hp/e.max),5);ctx.fillStyle=colors[e.team];ctx.font='bold 12px Tahoma';ctx.textAlign='center';ctx.fillText(factions[e.team],x,y-62)});particles.forEach(p=>{ctx.globalAlpha=p.life;ctx.fillStyle=p.c;circle(p.x,p.y,p.r,p);ctx.fill();ctx.globalAlpha=1});if(gameover){ctx.fillStyle='#0009';ctx.fillRect(0,0,W,H);ctx.fillStyle='#f5d38d';ctx.textAlign='center';ctx.font='bold 32px Tahoma';ctx.fillText('انتهت المعركة',W/2,H/2)}}
+function step(dt){tick+=dt;money+=dt*.75;food+=dt*.25;
+ for(let u of units){if(u.hp<=0)continue;u.cd-=dt;let target=u.order?.target;if(target&&target.hp<=0){u.order.target=null;target=null}
+ if(!target){let near=units.filter(v=>v.team!==u.team&&v.hp>0&&dist(u,v)<(u.range?150:65)).sort((a,b)=>dist(u,a)-dist(u,b))[0];if(near&&u.type!=='worker')target=near}
+ if(!target&&u.order?.target)target=u.order.target;
+ if(target){let d=dist(u,target),range=u.range?u.range*45:28;if(d>range){u.x+=(target.x-u.x)/d*u.speed*dt*speed;u.y+=(target.y-u.y)/d*u.speed*dt*speed}else if(u.cd<=0){target.hp-=u.dmg;u.cd=.8;if(target.hp<=0){score+=10;money+=25;toast('تم القضاء على وحدة معادية +25 ذهب')}}}
+ else if(u.order){let d=Math.hypot(u.order.x-u.x,u.order.y-u.y);if(d>8){u.x+=(u.order.x-u.x)/d*u.speed*dt*speed;u.y+=(u.order.y-u.y)/d*u.speed*dt*speed}else u.order=null}
+ }
+ for(let b of buildings){if(b.team===0&&b.type==='mine')money+=dt*1.3;if(b.team===0&&b.type==='tower'){b.cd-=dt;if(b.cd<=0){let e=units.filter(u=>u.team!==0&&u.hp>0&&dist(b,u)<b.range*2).sort((a,c)=>dist(b,a)-dist(b,c))[0];if(e){e.hp-=b.dmg;b.cd=1.1}}}}
+ for(let e of enemies){if(e.hp<=0)continue;e.cd-=dt;if(tick>10+e.level*2&&Math.random()<dt*.035){units.push(unit('enemy',e.team,e.x+rand(-60,60),e.y+rand(-60,60)))}let victim=units.filter(u=>u.team===0&&u.hp>0).sort((a,b)=>dist(e,a)-dist(e,b))[0];if(victim&&dist(e,victim)<45&&e.cd<=0){victim.hp-=9;e.cd=1}}
+ units=units.filter(u=>u.hp>0);if(tick>1){enemies=enemies.filter(e=>e.hp>0);buildings=buildings.filter(b=>b.hp>0)}
+ if(!enemies.length&&!gameover){gameover=true;toast('انتصرت قبيلة ال طنجة!');speak('النصر لقبيلة ال طنجة');setTimeout(()=>{document.getElementById('overlay').style.display='flex';document.querySelector('#overlay h1').textContent='النصر لقبيلة ال طنجة';document.querySelector('#overlay p').textContent='أثبت جيشك قوته وأسقط الفصائل الخمسة. اضغط ابدأ لخوض معركة جديدة.'},1600)}
+ let hq=buildings.find(b=>b.team===0&&b.type==='hq');if(!hq&&!gameover){gameover=true;toast('سقط مقر القيادة');}
+ updateHud()}
+function loop(now){let dt=Math.min(.05,(now-last)/1000||0);last=now;if(started&&!paused&&!gameover)step(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+})();
+</script></body></html>

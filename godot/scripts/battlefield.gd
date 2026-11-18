@@ -16,8 +16,13 @@ var hud: CanvasLayer
 var status_label: Label
 var resources := 5000
 var selection_ring: MeshInstance3D
+# Imported CC0 GLB assets; the tank is a real mesh, not the old box-only placeholder.
+var tank_model_scene: PackedScene
+var guard_tower_scene: PackedScene
 
 func _ready() -> void:
+	tank_model_scene = load("res://assets/quaternius-tank.glb") as PackedScene
+	guard_tower_scene = load("res://assets/quaternius-guard-tower.glb") as PackedScene
 	_build_world()
 	_build_camera()
 	_build_armies()
@@ -203,20 +208,38 @@ func _make_tank(pos: Vector3, color: Color, team: int) -> Node3D:
 	hit_shape.shape = hit_box
 	hit_body.add_child(hit_shape)
 	tank.add_child(hit_body)
-	# Layered hull, tracks, road wheels, turret and cannon.
-	_box(tank,Vector3(3.35,0.8,4.7),Vector3(0,0.8,0),color)
-	_box(tank,Vector3(2.15,0.72,2.35),Vector3(0,1.48,-0.15),color.lightened(0.12))
-	_cylinder(tank,0.82,0.22,Vector3(0,1.88,-0.1),Color(0.16,0.17,0.15))
-	_box(tank,Vector3(0.38,0.38,3.4),Vector3(0,1.65,-2.0),Color(0.17,0.18,0.16))
-	for side in [-1.0,1.0]:
-		_box(tank,Vector3(0.48,0.72,4.9),Vector3(side*1.82,0.58,0),Color(0.12,0.13,0.12))
-		for wheel in range(5):
-			_cylinder(tank,0.34,0.16,Vector3(side*2.08,0.52,-1.75+wheel*0.86),Color(0.09,0.10,0.09))
+	# Use the imported CC0 tank model. Keep the old primitive fallback only for editor/import failures.
+	if tank_model_scene != null:
+		var visual := tank_model_scene.instantiate() as Node3D
+		visual.name = "ImportedTankModel"
+		visual.position = Vector3(0, 0.12, 0)
+		visual.scale = Vector3(1.0, 1.0, 1.0)
+		tank.add_child(visual)
+	else:
+		_box(tank,Vector3(3.35,0.8,4.7),Vector3(0,0.8,0),color)
+		_box(tank,Vector3(2.15,0.72,2.35),Vector3(0,1.48,-0.15),color.lightened(0.12))
+		_cylinder(tank,0.82,0.22,Vector3(0,1.88,-0.1),Color(0.16,0.17,0.15))
+		_box(tank,Vector3(0.38,0.38,3.4),Vector3(0,1.65,-2.0),Color(0.17,0.18,0.16))
+		for side in [-1.0,1.0]:
+			_box(tank,Vector3(0.48,0.72,4.9),Vector3(side*1.82,0.58,0),Color(0.12,0.13,0.12))
+			for wheel in range(5):
+				_cylinder(tank,0.34,0.16,Vector3(side*2.08,0.52,-1.75+wheel*0.86),Color(0.09,0.10,0.09))
 	units.append(tank)
 	return tank
 
+func _make_guard_tower(pos: Vector3, team: int) -> void:
+	if guard_tower_scene == null:
+		return
+	var tower := guard_tower_scene.instantiate() as Node3D
+	tower.position = pos
+	tower.name = "ImportedGuardTower_%d" % team
+	tower.scale = Vector3.ONE * 1.7
+	add_child(tower)
+
 func _build_armies() -> void:
 	_make_building(Vector3(-14,0,-13),Vector3(10,3.5,9),Color(0.22,0.31,0.25),"HQ")
+	_make_guard_tower(Vector3(-27,0,-22), 0)
+	_make_guard_tower(Vector3(-2,0,-22), 0)
 	_make_building(Vector3(-27,0,-10),Vector3(7,2.8,7),Color(0.35,0.31,0.22),"")
 	_make_building(Vector3(-13,0,-28),Vector3(8,3.2,7),Color(0.28,0.29,0.27),"")
 	for i in range(5):

@@ -10,7 +10,7 @@ on:
 jobs:
   android:
     runs-on: ubuntu-22.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +28,7 @@ jobs:
       - name: Install Android platform
         run: |
           yes | sdkmanager --licenses
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
       - name: Download Godot 4.3 and Android export templates
         run: |
@@ -48,13 +48,16 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
 
-      - name: Import project and export APK
+      - name: Import Godot project
+        run: |
+          cd godot
+          timeout 8m godot --headless --editor --path . --import --quit --verbose
+
+      - name: Export Android APK
         run: |
           mkdir -p build
-          cd godot
-          timeout 8m godot --headless --editor --path . --verbose --quit
-          timeout 8m godot --headless --editor --path . --install-android-build-template
-          timeout 10m godot --headless --path . --verbose --export-debug "Android" ../build/Qabilat-Al-Tanja-3D.apk
+          timeout 12m godot --headless --path godot --verbose --export-debug "Android" build/Qabilat-Al-Tanja-3D.apk
+          test -s build/Qabilat-Al-Tanja-3D.apk
 
       - uses: actions/upload-artifact@v4
         with:

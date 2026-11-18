@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#101a18"><title>قبيلة ال طنجة</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101a18;color:#f5f0df;font-family:Tahoma,Arial,sans-serif;overflow:hidden}
+header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#182723;border-bottom:1px solid #60715b}
+.logo{font-weight:bold;font-size:19px;color:#e8c879}.stats{font-size:12px;color:#d9e0cc}
+main{height:calc(100dvh - 130px);position:relative}canvas{width:100%;height:100%;display:block;touch-action:none}
+.panel{height:72px;background:#182723;display:flex;gap:7px;padding:9px;justify-content:center;border-top:1px solid #60715b}
+button{border:1px solid #a88b4f;border-radius:9px;background:#35483a;color:#fff2d1;padding:8px 12px;font-weight:bold;font-size:13px}
+button.primary{background:#8b682d;color:white}button:disabled{opacity:.45}
+#hint{position:absolute;top:9px;right:9px;background:#101a18d9;padding:8px 10px;border-radius:8px;font-size:12px;pointer-events:none}
+#toast{position:absolute;bottom:8px;left:8px;background:#101a18dd;padding:7px 10px;border-radius:8px;font-size:12px}
+</style></head>
+<body>
+<header><div class="logo">⚔ قبيلة ال طنجة</div><div class="stats">💰 <span id="money">500</span>　🛡 <span id="army">0</span> وحدة</div></header>
+<main><canvas id="game"></canvas><div id="hint">اضغط على جندي لتحديده، ثم اضغط على الأرض لتحريكه</div><div id="toast">استعد للمعركة يا قائد!</div></main>
+<div class="panel"><button class="primary" id="start">ابدأ المعركة</button><button id="inf">تجنيد جندي ١٠٠</button><button id="tank">شراء دبابة ٢٥٠</button><button id="zoomIn">＋</button><button id="zoomOut">－</button></div>
+<script>
+(()=>{
+const c=document.getElementById('game'),ctx=c.getContext('2d'),moneyEl=document.getElementById('money'),armyEl=document.getElementById('army'),toast=document.getElementById('toast');
+let W=0,H=0,scale=1,started=false,money=500,selected=null,last=0,units=[],enemies=[],particles=[];
+const base={x:130,y:260},enemyBase={x:900,y:260};
+function resize(){const dpr=Math.min(devicePixelRatio||1,2);W=c.clientWidth;H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
+addEventListener('resize',resize);
+function say(s){toast.textContent=s}
+function unit(x,y,type,side='friendly'){return {x,y,type,side,hp:type==='tank'?180:70,max:type==='tank'?180:70,speed:type==='tank'?32:48,tx:x,ty:y,fire:0}}
+function spawn(){units.push(unit(base.x+45+Math.random()*55,base.y-35+Math.random()*70,'soldier'))}
+function start(){if(started)return;started=true;for(let i=0;i<4;i++)spawn();for(let i=0;i<4;i++)enemies.push(unit(enemyBase.x-35-Math.random()*65,enemyBase.y-40+Math.random()*80,'soldier','enemy'));say('بدأت المعركة! احمِ قاعدتك وهاجم العدو.');}
+document.getElementById('start').onclick=start;
+document.getElementById('inf').onclick=()=>{if(money<100)return say('الموارد غير كافية');money-=100;spawn();updateStats();say('تم تجنيد جندي جديد');};
+document.getElementById('tank').onclick=()=>{if(money<250)return say('الموارد غير كافية');money-=250;units.push(unit(base.x+65,base.y+75,'tank'));updateStats();say('وصلت دبابة جديدة إلى القاعدة');};
+document.getElementById('zoomIn').onclick=()=>{scale=Math.min(1.6,scale+.1);draw()};
+document.getElementById('zoomOut').onclick=()=>{scale=Math.max(.7,scale-.1);draw()};
+function updateStats(){moneyEl.textContent=money;armyEl.textContent=units.length}
+function rounded(x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+function draw(){if(!W||!H)return;ctx.clearRect(0,0,W,H);ctx.save();ctx.translate(W/2,H/2);ctx.scale(scale,scale);ctx.translate(-W/2,-H/2);
+ctx.fillStyle='#526346';ctx.fillRect(0,0,W,H);
+for(let y=0;y<H;y+=42)for(let x=0;x<W;x+=42){ctx.fillStyle=((x+y)/42%2<1)?'#596d49':'#536544';ctx.fillRect(x,y,40,40)}
+// road
+ctx.fillStyle='#82765a';ctx.fillRect(0,H*.43,W,H*.15);ctx.strokeStyle='#b5a37a';ctx.setLineDash([18,15]);ctx.beginPath();ctx.moveTo(0,H*.505);ctx.lineTo(W,H*.505);ctx.stroke();ctx.setLineDash([]);
+drawBase(base.x,base.y,'قاعدة ال طنجة','#b08b42');drawBase(enemyBase.x,enemyBase.y,'قاعدة الخصم','#873e35');
+[...units,...enemies].forEach(u=>drawUnit(u));
+ctx.restore();
+}
+function drawBase(x,y,label,color){rounded(x-55,y-42,110,84,8,'#29372c');rounded(x-48,y-35,96,70,6,color);ctx.fillStyle='#f5e9c6';ctx.font='bold 12px Tahoma';ctx.textAlign='center';ctx.fillText(label,x,y+57);ctx.fillStyle='#e9dfbd';ctx.fillRect(x-5,y-58,10,18);ctx.fillStyle='#1e2a24';ctx.fillRect(x-4,y-58,8,18)}
+function drawUnit(u){ctx.save();ctx.translate(u.x,u.y);if(u===selected){ctx.strokeStyle='#ffe16b';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,0,u.type==='tank'?23:15,9,0,0,Math.PI*2);ctx.stroke()}
+if(u.type==='tank'){rounded(-19,-12,38,24,5,u.side==='friendly'?'#9b8752':'#8b5148');rounded(-8,-6,22,12,4,u.side==='friendly'?'#c0a66b':'#b36a5e');ctx.fillStyle='#333';ctx.fillRect(5,-3,20,6)}
+else{ctx.fillStyle=u.side==='friendly'?'#d5c79a':'#c97b70';ctx.beginPath();ctx.arc(0,-7,6,0,7);ctx.fill();rounded(-5,-2,10,17,3,u.side==='friendly'?'#687e52':'#8e4c43');ctx.strokeStyle='#272d22';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-2,13);ctx.lineTo(-5,19);ctx.moveTo(2,13);ctx.lineTo(5,19);ctx.stroke()}
+ctx.fillStyle='#251f1a';ctx.fillRect(-13,-23,26,4);ctx.fillStyle=u.hp/u.max>.5?'#8bd06c':'#e5a34e';ctx.fillRect(-13,-23,26*u.hp/u.max,4);ctx.restore()}
+function pos(e){const r=c.getBoundingClientRect();return {x:(e.clientX-r.left-W/2)/scale+W/2,y:(e.clientY-r.top-H/2)/scale+H/2}}
+c.addEventListener('pointerdown',e=>{const p=pos(e);let hit=[...units,...enemies].find(u=>Math.hypot(u.x-p.x,u.y-p.y)<24);if(hit){selected=hit; if(hit.side==='enemy')say('هذه وحدة معادية!');else say('تم تحديد الوحدة. اختر مكاناً لتحريكها.');draw();return}
+if(selected&&selected.side==='friendly'){selected.tx=p.x;selected.ty=p.y;say('الوحدة تتحرك إلى الموقع المحدد');}else selected=null;draw()});
+function tick(t){const dt=Math.min(.05,(t-last)/1000||0);last=t;if(started){for(const u of units){const dx=u.tx-u.x,dy=u.ty-u.y,d=Math.hypot(dx,dy);if(d>2){u.x+=dx/d*u.speed*dt;u.y+=dy/d*u.speed*dt}}
+for(const e of enemies){let target=units.reduce((a,b)=>Math.hypot(a.x-e.x,a.y-e.y)<Math.hypot(b.x-e.x,b.y-e.y)?a:b,units[0]);if(target){let d=Math.hypot(target.x-e.x,target.y-e.y);if(d>90){e.x+=(target.x-e.x)/d*e.speed*.55*dt;e.y+=(target.y-e.y)/d*e.speed*.55*dt}else{e.fire-=dt;if(e.fire<=0){target.hp-=8;e.fire=1.2;if(target.hp<=0){units=units.filter(x=>x!==target);if(selected===target)selected=null;updateStats();say('خسرنا وحدة!')}}}}}
+for(const u of units){let e=enemies.find(x=>Math.hypot(x.x-u.x,x.y-u.y)<145);if(e){u.fire-=dt;if(u.fire<=0){e.hp-=u.type==='tank'?28:12;u.fire=u.type==='tank'?.65:1.1;if(e.hp<=0){enemies=enemies.filter(x=>x!==e);money+=50;updateStats();say('تم تدمير وحدة معادية +٥٠ مورد')}}}}
+if(enemies.length===0&&units.length){say('انتصار قبيلة ال طنجة!');started=false;money+=150;updateStats()}
+if(units.length===0){say('تم تدمير قواتك. أعد المحاولة!');started=false}
+}draw();requestAnimationFrame(tick)}
+resize();requestAnimationFrame(tick);
+})();
+</script></body></html>

@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         webView.setBackgroundColor(0xFF101820);
         setContentView(webView);
-        webView.loadUrl("file:///android_asset/index.html");
+        webView.loadUrl("file:///android_asset/play.html");
     }
 
     @Override

@@ -105,6 +105,16 @@ func _make_tank(pos: Vector3, color: Color, team: int) -> Node3D:
 	tank.position = pos
 	tank.set_meta("team",team)
 	add_child(tank)
+	# Real collision body: without this, touch selection raycasts hit nothing.
+	var hit_body := StaticBody3D.new()
+	hit_body.position = Vector3(0,1.15,0)
+	hit_body.set_meta("team",team)
+	var hit_shape := CollisionShape3D.new()
+	var hit_box := BoxShape3D.new()
+	hit_box.size = Vector3(4.4,3.0,5.8)
+	hit_shape.shape = hit_box
+	hit_body.add_child(hit_shape)
+	tank.add_child(hit_body)
 	_box(tank,Vector3(3.2,0.8,4.4),Vector3(0,0.75,0),color)
 	_box(tank,Vector3(2.0,0.65,2.3),Vector3(0,1.4,-0.1),color.lightened(0.12))
 	_box(tank,Vector3(0.45,0.35,2.8),Vector3(0,1.55,-1.8),Color(0.18,0.19,0.17))
@@ -119,10 +129,12 @@ func _build_armies() -> void:
 	_make_building(Vector3(-10,0,-23),Vector3(7,3,6),Color(0.28,0.29,0.27),"")
 	for i in range(4):
 		_make_tank(Vector3(-16+i*3.6,0,-1),Color(0.29,0.38,0.25),0)
-	var colors=[Color(0.55,0.22,0.16),Color(0.18,0.34,0.55),Color(0.58,0.48,0.16),Color(0.42,0.25,0.52)]
-	for team in range(4):
-		var x := 16.0 + (team%2)*9.0
-		var z := -22.0 + (team/2)*35.0
+	# Five rival factions face the strongest Al-Tanja army.
+	var colors=[Color(0.55,0.22,0.16),Color(0.18,0.34,0.55),Color(0.58,0.48,0.16),Color(0.42,0.25,0.52),Color(0.18,0.48,0.43)]
+	var faction_z=[-30.0,-15.0,0.0,15.0,30.0]
+	for team in range(5):
+		var x := 23.0 + (team%2)*7.0
+		var z := faction_z[team]
 		_make_building(Vector3(x,0,z),Vector3(7,2.8,7),colors[team],"")
 		for j in range(2):
 			_make_tank(Vector3(x-4+j*3.0,0,z+7),colors[team],team+1)

@@ -23,16 +23,28 @@ func _ready() -> void:
 	_build_armies()
 	_build_hud()
 
+var income_clock := 0.0
+
 func _process(delta: float) -> void:
-	for unit in units:
+	income_clock += delta
+	if income_clock >= 1.0:
+		income_clock = 0.0
+		resources += 25
+	for unit in units.duplicate():
+		if not is_instance_valid(unit):
+			units.erase(unit)
+			continue
 		if unit.has_meta("moving") and unit.get_meta("moving"):
-			var target: Vector3 = unit.get_meta("move_target")
-			var flat_target := Vector3(target.x, unit.position.y, target.z)
+			var move_target: Vector3 = unit.get_meta("move_target")
+			var flat_target := Vector3(move_target.x, unit.position.y, move_target.z)
 			unit.position = unit.position.move_toward(flat_target, delta * 7.0)
-			if Vector2(unit.position.x, unit.position.z).distance_to(Vector2(target.x, target.z)) < 0.25:
+			if Vector2(unit.position.x, unit.position.z).distance_to(Vector2(move_target.x, move_target.z)) < 0.35:
 				unit.set_meta("moving", false)
+		_combat_unit(unit, delta)
 	if is_instance_valid(selection_ring) and is_instance_valid(selected):
 		selection_ring.global_position = selected.global_position + Vector3(0, 0.08, 0)
+	if is_instance_valid(status_label):
+		status_label.text = "الموارد: %d  |  القوات: %d  |  دخل الموارد: +25/ث" % [resources, _player_unit_count()]
 
 func _mat(color: Color, metallic := 0.0, roughness := 0.8) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -176,6 +188,11 @@ func _make_tank(pos: Vector3, color: Color, team: int) -> Node3D:
 	tank.position = pos
 	tank.set_meta("team",team)
 	tank.set_meta("moving",false)
+	tank.set_meta("health",100.0)
+	tank.set_meta("max_health",100.0)
+	tank.set_meta("damage",14.0 if team == 0 else 10.0)
+	tank.set_meta("attack_range",19.0 if team == 0 else 16.0)
+	tank.set_meta("cooldown",randf_range(0.2,1.0))
 	add_child(tank)
 	var hit_body := StaticBody3D.new()
 	hit_body.position = Vector3(0,1.1,0)
@@ -239,6 +256,71 @@ func _build_hud() -> void:
 	flag.position=Vector2(20,162)
 	flag.add_theme_font_size_override("font_size",24)
 	hud.add_child(flag)
+	var train_button := Button.new()
+	train_button.text = "تدريب دبابة جديدة — 800 مورد"
+	train_button.position = Vector2(20, 205)
+	train_button.size = Vector2(300, 54)
+	train_button.add_theme_font_size_override("font_size", 19)
+	train_button.pressed.connect(_train_tank)
+	hud.add_child(train_button)
+
+func _player_unit_count() -> int:
+	var count := 0
+	for unit in units:
+		if is_instance_valid(unit) and int(unit.get_meta("team", -1)) == 0:
+			count += 1
+	return count
+
+func _train_tank() -> void:
+	if resources < 800:
+		status_label.text = "الموارد غير كافية — تحتاج 800 مورد"
+		return
+	resources -= 800
+	var count := _player_unit_count()
+	var spawn := Vector3(-20.0 + float(count % 4) * 4.2, 0, 5.0 + float(count / 4) * 4.2)
+	_make_tank(spawn, Color(0.29, 0.38, 0.25), 0)
+	status_label.text = "بدأ تدريب دبابة جديدة — جاهزة للقتال"
+
+func _combat_unit(unit: Node3D, delta: float) -> void:
+	var enemy := _nearest_enemy(unit)
+	if not is_instance_valid(enemy):
+		return
+	var distance := unit.global_position.distance_to(enemy.global_position)
+	var attack_range := float(unit.get_meta("attack_range", 16.0))
+	var team := int(unit.get_meta("team", -1))
+	if team != 0 and distance > attack_range:
+		unit.set_meta("move_target", Vector3(enemy.global_position.x, 0, enemy.global_position.z))
+		unit.set_meta("moving", true)
+	if distance <= attack_range:
+		var cooldown := maxf(0.0, float(unit.get_meta("cooldown", 0.0)) - delta)
+		if cooldown <= 0.0:
+			var health := float(enemy.get_meta("health", 100.0))
+			health -= float(unit.get_meta("damage", 10.0))
+			enemy.set_meta("health", health)
+			unit.set_meta("cooldown", 1.25 if team == 0 else 1.65)
+			if health <= 0.0:
+				if enemy == selected:
+					selected = null
+					if is_instance_valid(selection_ring):
+						selection_ring.queue_free()
+						selection_ring = null
+				units.erase(enemy)
+				enemy.queue_free()
+
+func _nearest_enemy(unit: Node3D) -> Node3D:
+	var nearest: Node3D = null
+	var best_distance := INF
+	var team := int(unit.get_meta("team", -1))
+	for other in units:
+		if not is_instance_valid(other) or other == unit:
+			continue
+		if int(other.get_meta("team", -1)) == team:
+			continue
+		var distance := unit.global_position.distance_to(other.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			nearest = other
+	return nearest
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:

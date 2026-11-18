@@ -10,6 +10,7 @@ on:
 jobs:
   android:
     runs-on: ubuntu-22.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -51,9 +52,9 @@ jobs:
         run: |
           mkdir -p build
           cd godot
-          godot --headless --editor --path . --quit
-          godot --headless --editor --path . --install-android-build-template
-          godot --headless --path . --export-debug "Android" ../build/Qabilat-Al-Tanja-3D.apk
+          timeout 8m godot --headless --editor --path . --verbose --quit
+          timeout 8m godot --headless --editor --path . --install-android-build-template
+          timeout 10m godot --headless --path . --verbose --export-debug "Android" ../build/Qabilat-Al-Tanja-3D.apk
 
       - uses: actions/upload-artifact@v4
         with:

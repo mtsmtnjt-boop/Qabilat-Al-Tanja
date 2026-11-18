@@ -340,7 +340,7 @@ func _touch_distance() -> float:
 	var keys := touch_points.keys()
 	if keys.size() < 2:
 		return 0.0
-	return (touch_points[keys[0]] as Vector2).distance_to(touch_points[keys[1]] as Vector2)
+	return Vector2(touch_points[keys[0]]).distance_to(Vector2(touch_points[keys[1]]))
 
 func _select_at(screen_pos: Vector2) -> void:
 	# Select using screen-space positions; no hidden collision dependency.

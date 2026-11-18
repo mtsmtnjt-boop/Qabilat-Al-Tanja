@@ -37,6 +37,7 @@ jobs:
       - name: Configure Android build
         run: |
           mkdir -p "$HOME/.config/godot"
+          KEYSTORE_PASSWORD=android
           keytool -genkeypair -v -keystore "$HOME/.config/godot/android_debug.keystore" -storepass "$KEYSTORE_PASSWORD" -alias androiddebugkey -keypass "$KEYSTORE_PASSWORD" -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
           echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
           echo "DEBUG_KEYSTORE=$HOME/.config/godot/android_debug.keystore" >> "$GITHUB_ENV"

@@ -46,14 +46,11 @@ func _perform(action: int) -> void:
 		return
 	match action:
 		-1:
-			battlefield.camera_yaw -= 0.22
-			battlefield._update_camera()
+			battlefield.orbit -= 0.22
 		1:
-			battlefield.camera_yaw += 0.22
-			battlefield._update_camera()
+			battlefield.orbit += 0.22
 		2:
-			battlefield.zoom = maxf(battlefield.CAMERA_MIN, battlefield.zoom - 4.0)
-			battlefield._update_camera()
+			battlefield.distance = maxf(18.0, battlefield.distance - 4.0)
 		3:
-			battlefield.zoom = minf(battlefield.CAMERA_MAX, battlefield.zoom + 4.0)
-			battlefield._update_camera()
+			battlefield.distance = minf(85.0, battlefield.distance + 4.0)
+	battlefield._update_camera()

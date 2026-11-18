@@ -37,31 +37,31 @@ jobs:
       - name: Configure Android build
         run: |
           mkdir -p "$HOME/.config/godot"
-          keytool -genkeypair -v -keystore "$HOME/.config/godot/android_debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          keytool -genkeypair -v -keystore "$HOME/.config/godot/android_debug.keystore" -storepass "$KEYSTORE_PASSWORD" -alias androiddebugkey -keypass "$KEYSTORE_PASSWORD" -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "DEBUG_KEYSTORE=$HOME/.config/godot/android_debug.keystore" >> "$GITHUB_ENV"
           cat > "$HOME/.config/godot/editor_settings-4.3.tres" <<EOF
           [gd_resource type="EditorSettings" format=3]
           [resource]
           export/android/android_sdk_path = "$ANDROID_HOME"
           export/android/java_sdk_path = "$JAVA_HOME"
-          export/android/debug_keystore = "$HOME/.config/godot/android_debug.keystore"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_password = "android"
           EOF
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.config/godot/android_debug.keystore" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
       - name: Import clean project
         run: |
           cd rebuild
           timeout 8m godot --headless --editor --path . --import --quit --verbose
-      - name: Validate project and export APK
+      - name: Export, align and sign APK
+        shell: bash
         run: |
-          mkdir -p rebuild/build
-          godot --headless --editor --path rebuild --quit --verbose
-          timeout 12m godot --headless --path rebuild --verbose --export-debug "Android" rebuild/build/Qabilat-Al-Tanja-Rebuild.apk 2>&1 | tee /tmp/godot-export.log
-          test -s rebuild/build/Qabilat-Al-Tanja-Rebuild.apk
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/rebuild/build"
+          godot --headless --editor --path "$GITHUB_WORKSPACE/rebuild" --quit --verbose
+          timeout 12m godot --headless --path "$GITHUB_WORKSPACE/rebuild" --verbose --export-debug "Android" "$GITHUB_WORKSPACE/rebuild/build/unsigned.apk" 2>&1 | tee /tmp/godot-export.log
+          test -s "$GITHUB_WORKSPACE/rebuild/build/unsigned.apk"
+          "$ANDROID_HOME/build-tools/34.0.0/zipalign" -f -v 4 "$GITHUB_WORKSPACE/rebuild/build/unsigned.apk" "$GITHUB_WORKSPACE/rebuild/build/aligned.apk"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign --ks "$DEBUG_KEYSTORE" --ks-key-alias androiddebugkey --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD --out "$GITHUB_WORKSPACE/rebuild/build/Qabilat-Al-Tanja-Rebuild.apk" "$GITHUB_WORKSPACE/rebuild/build/aligned.apk"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose "$GITHUB_WORKSPACE/rebuild/build/Qabilat-Al-Tanja-Rebuild.apk"
+          test -s "$GITHUB_WORKSPACE/rebuild/build/Qabilat-Al-Tanja-Rebuild.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: Qabilat-Al-Tanja-Rebuild-APK

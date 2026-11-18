@@ -305,6 +305,8 @@ func _input(event: InputEvent) -> void:
 			if touch_points.size() == 2:
 				pinch_start = _touch_distance()
 		else:
+			if touch_points.size() == 1:
+				_select_at(event.position)
 			touch_points.erase(event.index)
 	elif event is InputEventScreenDrag:
 		touch_points[event.index] = event.position
@@ -341,14 +343,20 @@ func _touch_distance() -> float:
 	return (touch_points[keys[0]] as Vector2).distance_to(touch_points[keys[1]] as Vector2)
 
 func _select_at(screen_pos: Vector2) -> void:
-	var origin := camera.project_ray_origin(screen_pos)
-	var direction := camera.project_ray_normal(screen_pos)
-	var query := PhysicsRayQueryParameters3D.create(origin,origin+direction*300.0)
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit:
-		var collider: Node = hit.collider
-		while collider and not collider in units:
-			collider = collider.get_parent()
-		if collider and collider in units:
-			selected = collider
-			_set_status("تم اختيار: " + str(selected.name))
+	# Select using screen-space positions; no hidden collision dependency.
+	var nearest: Node3D = null
+	var nearest_distance := 72.0
+	for unit in units:
+		if not is_instance_valid(unit):
+			continue
+		var marker := unit.global_position + Vector3(0,2.2,0)
+		if camera.is_position_behind(marker):
+			continue
+		var point := camera.unproject_position(marker)
+		var d := point.distance_to(screen_pos)
+		if d < nearest_distance:
+			nearest_distance = d
+			nearest = unit
+	if nearest:
+		selected = nearest
+		_set_status("تم اختيار: " + str(selected.name))

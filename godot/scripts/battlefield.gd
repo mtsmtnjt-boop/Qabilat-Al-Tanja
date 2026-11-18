@@ -19,10 +19,20 @@ var selection_ring: MeshInstance3D
 # Imported CC0 GLB assets; the tank is a real mesh, not the old box-only placeholder.
 var tank_model_scene: PackedScene
 var guard_tower_scene: PackedScene
+var building_models: Array[PackedScene] = []
+var tree_models: Array[PackedScene] = []
 
 func _ready() -> void:
 	tank_model_scene = load("res://assets/quaternius-tank.glb") as PackedScene
 	guard_tower_scene = load("res://assets/quaternius-guard-tower.glb") as PackedScene
+	for path in ["res://assets/b_small.glb", "res://assets/b_medium.glb", "res://assets/b_large.glb"]:
+		var scene := load(path) as PackedScene
+		if scene != null:
+			building_models.append(scene)
+	for path in ["res://assets/tree1.glb", "res://assets/tree2.glb", "res://assets/tree3.glb"]:
+		var scene := load(path) as PackedScene
+		if scene != null:
+			tree_models.append(scene)
 	_build_world()
 	_build_camera()
 	_build_armies()
@@ -135,17 +145,12 @@ func _build_world() -> void:
 		rock.material_override = _mat(Color(0.24,0.25,0.22))
 		add_child(rock)
 	for i in range(24):
-		var tree := Node3D.new()
+		if tree_models.is_empty():
+			push_error("Missing real tree GLB; skipping tree rather than drawing a sphere.")
+			break
+		var tree := tree_models[i % tree_models.size()].instantiate() as Node3D
 		tree.position = Vector3(randf_range(-54,54),0,randf_range(-54,54))
-		_cylinder(tree,0.18,1.7,Vector3(0,0.85,0),Color(0.25,0.19,0.12))
-		var crown := MeshInstance3D.new()
-		var crown_mesh := SphereMesh.new()
-		crown_mesh.radius = randf_range(0.8,1.4)
-		crown_mesh.height = crown_mesh.radius*1.8
-		crown.mesh = crown_mesh
-		crown.position.y = 2.0
-		crown.material_override = _mat(Color(0.17,0.25,0.15))
-		tree.add_child(crown)
+		tree.scale = Vector3.ONE * randf_range(1.1, 1.8)
 		add_child(tree)
 
 func _build_camera() -> void:
@@ -166,27 +171,31 @@ func _update_camera() -> void:
 func _make_building(pos: Vector3, size: Vector3, color: Color, label: String) -> void:
 	var b := Node3D.new()
 	b.position = pos
+	b.name = "مبنى_قيادة" if label == "HQ" else "مبنى_قاعدة"
 	add_child(b)
-	_box(b,size,Vector3(0,size.y/2,0),color)
-	_box(b,Vector3(size.x*0.72,0.55,size.z*0.72),Vector3(0,size.y+0.25,0),Color(0.22,0.24,0.22))
-	for x in [-0.32,0.32]:
-		_box(b,Vector3(0.35,0.45,0.35),Vector3(x*size.x,size.y+0.72,0),Color(0.34,0.35,0.31))
-	if label == "HQ":
-		_box(b,Vector3(0.2,4.2,0.2),Vector3(1.4,size.y+2.1,0),Color(0.12,0.13,0.12))
-		_box(b,Vector3(2.2,1.25,0.08),Vector3(2.5,size.y+2.7,0),Color(0.05,0.05,0.05))
-		var flag := Label3D.new()
-		flag.text = "قبيلة ال طنجة"
-		flag.font_size = 48
-		flag.position = Vector3(2.5,size.y+2.7,0.1)
-		b.add_child(flag)
+	# Use authored Quaternius building meshes; never replace a missing model with a visible box.
+	if building_models.size() > 0:
+		var model_index := 1 if label == "HQ" and building_models.size() > 1 else (2 if size.x >= 9.0 and building_models.size() > 2 else 0)
+		var visual := building_models[model_index].instantiate() as Node3D
+		visual.name = "RealBuildingModel"
+		visual.scale = Vector3.ONE * (1.15 if label == "HQ" else 0.9)
+		b.add_child(visual)
+	else:
+		push_error("Missing real building GLB; building intentionally not rendered as a primitive.")
 	var body := StaticBody3D.new()
 	var collision := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = size
 	collision.shape = box
-	collision.position.y = size.y/2
+	collision.position.y = size.y / 2.0
 	body.add_child(collision)
 	b.add_child(body)
+	if label == "HQ":
+		var flag := Label3D.new()
+		flag.text = "قبيلة ال طنجة"
+		flag.font_size = 48
+		flag.position = Vector3(0, size.y + 3.0, 0)
+		b.add_child(flag)
 
 func _make_tank(pos: Vector3, color: Color, team: int) -> Node3D:
 	var tank := Node3D.new()

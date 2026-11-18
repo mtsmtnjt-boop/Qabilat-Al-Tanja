@@ -134,7 +134,7 @@ func _build_armies() -> void:
 	var faction_z=[-30.0,-15.0,0.0,15.0,30.0]
 	for team in range(5):
 		var x := 23.0 + (team%2)*7.0
-		var z := faction_z[team]
+		var z: float = faction_z[team]
 		_make_building(Vector3(x,0,z),Vector3(7,2.8,7),colors[team],"")
 		for j in range(2):
 			_make_tank(Vector3(x-4+j*3.0,0,z+7),colors[team],team+1)

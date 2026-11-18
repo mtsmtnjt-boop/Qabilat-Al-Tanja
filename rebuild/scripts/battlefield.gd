@@ -40,6 +40,13 @@ func _process(delta: float) -> void:
 			var phase := game_time * 0.35 + float(enemy.get_instance_id() % 13)
 			enemy.position.x += sin(phase) * delta * 0.35
 			enemy.position.z += cos(phase) * delta * 0.25
+	for unit in units:
+		if is_instance_valid(unit) and unit.has_meta("move_target"):
+			var target: Vector3 = unit.get_meta("move_target")
+			var step := 7.0 * delta
+			unit.position = unit.position.move_toward(target, step)
+			if unit.position.distance_to(target) < 0.18:
+				unit.remove_meta("move_target")
 
 func _build_world() -> void:
 	world = Node3D.new()
@@ -306,7 +313,8 @@ func _input(event: InputEvent) -> void:
 				pinch_start = _touch_distance()
 		else:
 			if touch_points.size() == 1:
-				_select_at(event.position)
+				if not _select_at(event.position):
+					_order_selected_at(event.position)
 			touch_points.erase(event.index)
 	elif event is InputEventScreenDrag:
 		touch_points[event.index] = event.position
@@ -331,7 +339,8 @@ func _input(event: InputEvent) -> void:
 			distance = minf(85.0,distance+3.0)
 			_update_camera()
 		elif event.button_index == MOUSE_BUTTON_LEFT:
-			_select_at(event.position)
+			if not _select_at(event.position):
+				_order_selected_at(event.position)
 	elif event is InputEventMagnifyGesture:
 		distance = clampf(distance / event.factor,18.0,85.0)
 		_update_camera()
@@ -342,7 +351,7 @@ func _touch_distance() -> float:
 		return 0.0
 	return Vector2(touch_points[keys[0]]).distance_to(Vector2(touch_points[keys[1]]))
 
-func _select_at(screen_pos: Vector2) -> void:
+func _select_at(screen_pos: Vector2) -> bool:
 	# Select using screen-space positions; no hidden collision dependency.
 	var nearest: Node3D = null
 	var nearest_distance := 72.0
@@ -360,3 +369,22 @@ func _select_at(screen_pos: Vector2) -> void:
 	if nearest:
 		selected = nearest
 		_set_status("تم اختيار: " + str(selected.name))
+		return true
+	return false
+
+func _order_selected_at(screen_pos: Vector2) -> void:
+	if not is_instance_valid(selected):
+		_set_status("اختر دبابة أو جندياً أولاً")
+		return
+	var origin := camera.project_ray_origin(screen_pos)
+	var direction := camera.project_ray_normal(screen_pos)
+	if absf(direction.y) < 0.0001:
+		return
+	var distance_to_ground := -origin.y / direction.y
+	if distance_to_ground <= 0.0:
+		return
+	var destination := origin + direction * distance_to_ground
+	destination.x = clampf(destination.x, -MAP_SIZE * 0.48, MAP_SIZE * 0.48)
+	destination.z = clampf(destination.z, -MAP_SIZE * 0.48, MAP_SIZE * 0.48)
+	selected.set_meta("move_target", Vector3(destination.x, 0.0, destination.z))
+	_set_status("أمر حركة: " + str(selected.name) + " يتقدم إلى الموقع المحدد")

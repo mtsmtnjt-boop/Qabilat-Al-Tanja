@@ -57,6 +57,14 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
 
+      - name: Download licensed 3D battlefield assets
+        run: |
+          mkdir -p godot/assets
+          curl -L --fail --retry 3 "https://raw.githubusercontent.com/dhb118/opentop/main/public/assets/vendor/poly-pizza/quaternius-tank/quaternius-tank.glb" -o godot/assets/quaternius-tank.glb
+          curl -L --fail --retry 3 "https://raw.githubusercontent.com/dhb118/opentop/main/public/assets/vendor/poly-pizza/quaternius-guard-tower/quaternius-guard-tower.glb" -o godot/assets/quaternius-guard-tower.glb
+          test -s godot/assets/quaternius-tank.glb
+          test -s godot/assets/quaternius-guard-tower.glb
+
       - name: Import Godot project
         run: |
           cd godot

@@ -52,6 +52,7 @@ jobs:
           mkdir -p build
           cd godot
           godot --headless --editor --path . --quit
+          godot --headless --editor --path . --install-android-build-template
           godot --headless --path . --export-debug "Android" ../build/Qabilat-Al-Tanja-3D.apk
 
       - uses: actions/upload-artifact@v4

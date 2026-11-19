@@ -74,6 +74,16 @@ jobs:
           cd godot
           timeout 8m godot --headless --editor --path . --import --quit --verbose
 
+      - name: Validate game script and launch scene
+        run: |
+          set -o pipefail
+          cd godot
+          timeout 3m godot --headless --path . --quit-after 5 --verbose 2>&1 | tee /tmp/godot-runtime.log
+          if grep -E "SCRIPT ERROR:|Parse Error:|ERROR: Failed to load script" /tmp/godot-runtime.log; then
+            echo "Godot scene validation failed: script did not load cleanly."
+            exit 1
+          fi
+
       - name: Export Android APK
         run: |
           mkdir -p godot/build

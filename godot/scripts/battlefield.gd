@@ -153,6 +153,80 @@ func _build_world() -> void:
 		tree.scale = Vector3.ONE * randf_range(1.1, 1.8)
 		add_child(tree)
 
+	_build_landscape_details()
+
+func _build_landscape_details() -> void:
+	# Layered low-poly terrain silhouettes around the playable area.
+	var ridge_specs := [
+		[Vector3(-49.0, 3.0, -48.0), Vector3(19.0, 10.0, 13.0)],
+		[Vector3(-27.0, 4.0, -53.0), Vector3(24.0, 13.0, 15.0)],
+		[Vector3(4.0, 3.0, -54.0), Vector3(21.0, 9.0, 14.0)],
+		[Vector3(48.0, 4.0, -49.0), Vector3(23.0, 12.0, 16.0)],
+		[Vector3(-52.0, 3.0, 38.0), Vector3(22.0, 10.0, 16.0)],
+		[Vector3(51.0, 4.0, 39.0), Vector3(25.0, 13.0, 18.0)]
+	]
+	for spec in ridge_specs:
+		var hill := MeshInstance3D.new()
+		var hill_mesh := SphereMesh.new()
+		hill_mesh.radius = 1.0
+		hill_mesh.height = 2.0
+		hill.mesh = hill_mesh
+		hill.position = spec[0]
+		hill.scale = spec[1]
+		hill.material_override = _mat(Color(0.30, 0.31, 0.25), 0.0, 1.0)
+		add_child(hill)
+		# A smaller rocky crown breaks the silhouette and gives the ridge depth.
+		var crown := MeshInstance3D.new()
+		var crown_mesh := SphereMesh.new()
+		crown_mesh.radius = 1.0
+		crown_mesh.height = 1.7
+		crown.mesh = crown_mesh
+		crown.position = spec[0] + Vector3(0.0, spec[1].y * 0.52, -1.5)
+		crown.scale = Vector3(spec[1].x * 0.48, spec[1].y * 0.62, spec[1].z * 0.72)
+		crown.material_override = _mat(Color(0.24, 0.25, 0.22), 0.0, 1.0)
+		add_child(crown)
+
+	# Agricultural plots with repeated crop furrows; MultiMesh keeps draw calls low.
+	_add_field_patch(Vector3(-42.0, 0.07, 4.0), Vector2(18.0, 25.0), Color(0.43, 0.38, 0.20))
+	_add_field_patch(Vector3(39.0, 0.07, -13.0), Vector2(19.0, 27.0), Color(0.36, 0.38, 0.20))
+	_add_field_patch(Vector3(5.0, 0.07, 43.0), Vector2(25.0, 13.0), Color(0.39, 0.36, 0.19))
+
+	# A narrow pond adds a natural landmark beside the eastern fields.
+	var pond := MeshInstance3D.new()
+	var water := PlaneMesh.new()
+	water.size = Vector2(12.0, 7.0)
+	pond.mesh = water
+	pond.position = Vector3(43.0, 0.10, 18.0)
+	var water_mat := _mat(Color(0.10, 0.27, 0.31), 0.28, 0.22)
+	water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	water_mat.albedo_color.a = 0.88
+	pond.material_override = water_mat
+	add_child(pond)
+
+func _add_field_patch(center: Vector3, field_size: Vector2, field_color: Color) -> void:
+	var plot := MeshInstance3D.new()
+	var plot_mesh := PlaneMesh.new()
+	plot_mesh.size = field_size
+	plot.mesh = plot_mesh
+	plot.position = center
+	plot.material_override = _mat(field_color, 0.0, 1.0)
+	add_child(plot)
+
+	var furrow_mesh := BoxMesh.new()
+	furrow_mesh.size = Vector3(0.10, 0.045, field_size.y * 0.94)
+	var furrows := MultiMesh.new()
+	furrows.transform_format = MultiMesh.TRANSFORM_3D
+	furrows.mesh = furrow_mesh
+	furrows.instance_count = 17
+	for i in range(furrows.instance_count):
+		var x_offset := -field_size.x * 0.44 + float(i) * field_size.x * 0.88 / 16.0
+		furrows.set_instance_transform(i, Transform3D(Basis.IDENTITY, Vector3(x_offset, 0.04, 0.0)))
+	var furrow_instance := MultiMeshInstance3D.new()
+	furrow_instance.multimesh = furrows
+	furrow_instance.position = center + Vector3(0.0, 0.035, 0.0)
+	furrow_instance.material_override = _mat(field_color.darkened(0.24), 0.0, 1.0)
+	add_child(furrow_instance)
+
 func _build_camera() -> void:
 	camera = Camera3D.new()
 	camera.position = Vector3(0, zoom, zoom*0.82)

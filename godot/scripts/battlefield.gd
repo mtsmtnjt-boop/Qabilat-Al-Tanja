@@ -132,7 +132,7 @@ func _build_realistic_landscape() -> void:
 			var p01 := Vector3(x0, _terrain_height(x0, z1, noise), z1)
 			var p11 := Vector3(x1, _terrain_height(x1, z1, noise), z1)
 			for p in [p00, p01, p10, p10, p01, p11]:
-				var h := p.y
+				var h: float = p.y
 				var shade := noise.get_noise_2d(p.x * 2.0, p.z * 2.0) * 0.035
 				var ground_color := Color(0.29, 0.32, 0.22)
 				if h > 0.8:

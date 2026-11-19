@@ -97,63 +97,196 @@ func _build_world() -> void:
 	e.sky = Sky.new()
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.68, 0.70, 0.66)
-	e.ambient_light_energy = 0.8
+	e.ambient_light_energy = 0.9
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.environment = e
 	add_child(env)
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-52, -28, 0)
-	sun.light_energy = 1.45
+	sun.rotation_degrees = Vector3(-48, -32, 0)
+	sun.light_energy = 1.35
 	sun.shadow_enabled = true
 	add_child(sun)
+	_build_realistic_landscape()
 
-	var ground_body := StaticBody3D.new()
-	var ground := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(FIELD_SIZE, FIELD_SIZE)
-	ground.mesh = plane
-	ground.material_override = _mat(Color(0.31, 0.30, 0.23))
-	ground_body.add_child(ground)
-	var ground_shape := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(FIELD_SIZE, 0.4, FIELD_SIZE)
-	ground_shape.shape = shape
-	ground_shape.position.y = -0.22
-	ground_body.add_child(ground_shape)
-	add_child(ground_body)
+func _terrain_height(x: float, z: float, noise: FastNoiseLite) -> float:
+	var edge := clampf((maxf(absf(x), absf(z)) - 27.0) / 30.0, 0.0, 1.0)
+	return noise.get_noise_2d(x, z) * 2.2 * edge + sin(x * 0.045) * 0.22 * edge
 
-	# Broken terrain coloration, roads, rocky ridges and sparse vegetation.
-	for i in range(85):
-		var patch := MeshInstance3D.new()
-		var p := CylinderMesh.new()
-		p.top_radius = randf_range(0.7, 3.8)
-		p.bottom_radius = p.top_radius
-		p.height = 0.035
-		patch.mesh = p
-		patch.position = Vector3(randf_range(-55,55),0.025,randf_range(-55,55))
-		patch.material_override = _mat([Color(0.38,0.35,0.27),Color(0.25,0.29,0.22),Color(0.43,0.38,0.28)][i%3])
-		add_child(patch)
-	_box(self, Vector3(120,0.07,7), Vector3(0,0.045,8), Color(0.19,0.20,0.18))
-	_box(self, Vector3(7,0.075,120), Vector3(-18,0.05,0), Color(0.20,0.21,0.19))
-	for i in range(32):
-		var rock := MeshInstance3D.new()
-		var sphere := SphereMesh.new()
-		sphere.radius = randf_range(0.45,1.6)
-		sphere.height = sphere.radius * 1.35
-		rock.mesh = sphere
-		rock.position = Vector3(randf_range(-57,57),sphere.radius*0.3,randf_range(-57,57))
-		rock.material_override = _mat(Color(0.24,0.25,0.22))
-		add_child(rock)
-	for i in range(24):
-		if tree_models.is_empty():
-			push_error("Missing real tree GLB; skipping tree rather than drawing a sphere.")
-			break
-		var tree := tree_models[i % tree_models.size()].instantiate() as Node3D
-		tree.position = Vector3(randf_range(-54,54),0,randf_range(-54,54))
-		tree.scale = Vector3.ONE * randf_range(1.1, 1.8)
-		add_child(tree)
+func _build_realistic_landscape() -> void:
+	var noise := FastNoiseLite.new()
+	noise.seed = 7419
+	noise.frequency = 0.035
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var steps := 84
+	var half := FIELD_SIZE * 0.5
+	for z in range(steps):
+		for x in range(steps):
+			var x0 := -half + float(x) * FIELD_SIZE / steps
+			var x1 := -half + float(x + 1) * FIELD_SIZE / steps
+			var z0 := -half + float(z) * FIELD_SIZE / steps
+			var z1 := -half + float(z + 1) * FIELD_SIZE / steps
+			var p00 := Vector3(x0, _terrain_height(x0, z0, noise), z0)
+			var p10 := Vector3(x1, _terrain_height(x1, z0, noise), z0)
+			var p01 := Vector3(x0, _terrain_height(x0, z1, noise), z1)
+			var p11 := Vector3(x1, _terrain_height(x1, z1, noise), z1)
+			for p in [p00, p01, p10, p10, p01, p11]:
+				var h := p.y
+				var shade := noise.get_noise_2d(p.x * 2.0, p.z * 2.0) * 0.035
+				var ground_color := Color(0.29, 0.32, 0.22)
+				if h > 0.8:
+					ground_color = Color(0.34, 0.33, 0.27)
+				elif h < -0.45:
+					ground_color = Color(0.25, 0.29, 0.20)
+				st.set_color(ground_color + Color(shade, shade, shade))
+				st.set_normal(Vector3.UP)
+				st.add_vertex(p)
+	st.generate_normals()
+	var terrain_mesh := st.commit()
+	var terrain := MeshInstance3D.new()
+	terrain.name = "NaturalTerrain"
+	terrain.mesh = terrain_mesh
+	var terrain_mat := _mat(Color.WHITE, 0.0, 1.0)
+	terrain_mat.vertex_color_use_as_albedo = true
+	terrain.material_override = terrain_mat
+	add_child(terrain)
+	var terrain_body := StaticBody3D.new()
+	terrain_body.name = "TerrainCollision"
+	var terrain_collision := CollisionShape3D.new()
+	terrain_collision.shape = terrain_mesh.create_trimesh_shape()
+	terrain_body.add_child(terrain_collision)
+	add_child(terrain_body)
 
-	_build_landscape_details()
+	# Gravel roads with shoulders and visible center wear.
+	_add_road(Vector3(0.0, 0.12, 8.0), Vector3(120.0, 0.12, 7.2), Color(0.20, 0.20, 0.17))
+	_add_road(Vector3(-18.0, 0.14, 0.0), Vector3(6.8, 0.14, 120.0), Color(0.22, 0.21, 0.18))
+	_add_road(Vector3(-14.0, 0.18, -13.0), Vector3(22.0, 0.16, 4.0), Color(0.25, 0.24, 0.20))
+
+	_add_crop_field(Vector3(-42.0, 0.16, 4.0), Vector2(17.0, 24.0), Color(0.43, 0.37, 0.19))
+	_add_crop_field(Vector3(39.0, 0.16, -13.0), Vector2(18.0, 26.0), Color(0.36, 0.38, 0.20))
+	_add_crop_field(Vector3(5.0, 0.16, 43.0), Vector2(24.0, 12.0), Color(0.40, 0.36, 0.18))
+
+	# Water surface, muddy bank and shoreline stones.
+	var bank := MeshInstance3D.new()
+	var bank_mesh := CylinderMesh.new()
+	bank_mesh.top_radius = 6.8
+	bank_mesh.bottom_radius = 7.2
+	bank_mesh.height = 0.24
+	bank.mesh = bank_mesh
+	bank.position = Vector3(43.0, 0.10, 18.0)
+	bank.material_override = _mat(Color(0.30, 0.29, 0.21), 0.0, 1.0)
+	add_child(bank)
+	var pond := MeshInstance3D.new()
+	var water := PlaneMesh.new()
+	water.size = Vector2(11.5, 6.0)
+	pond.mesh = water
+	pond.position = Vector3(43.0, 0.25, 18.0)
+	var water_mat := _mat(Color(0.08, 0.24, 0.29), 0.35, 0.18)
+	water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	water_mat.albedo_color.a = 0.92
+	pond.material_override = water_mat
+	add_child(pond)
+
+	# Irregular ridgelines made from faceted rock cones rather than stretched spheres.
+	for i in range(18):
+		var side := -1.0 if i % 2 == 0 else 1.0
+		var x := side * randf_range(43.0, 57.0)
+		var z := randf_range(-52.0, 52.0)
+		_add_rock(Vector3(x, _terrain_height(x, z, noise), z), randf_range(3.0, 7.0))
+	for i in range(58):
+		var x := randf_range(-56.0, 56.0)
+		var z := randf_range(-56.0, 56.0)
+		if Vector2(x, z).distance_to(Vector2(-14, -13)) < 18.0:
+			continue
+		if Vector2(x, z).distance_to(Vector2(43, 18)) < 9.0:
+			continue
+		_add_tree(Vector3(x, _terrain_height(x, z, noise), z), randf_range(0.75, 1.35))
+
+func _add_road(center: Vector3, size: Vector3, color: Color) -> void:
+	var road := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	road.mesh = mesh
+	road.position = center
+	road.material_override = _mat(color, 0.0, 1.0)
+	add_child(road)
+	for side in [-1.0, 1.0]:
+		var shoulder := MeshInstance3D.new()
+		var shoulder_mesh := BoxMesh.new()
+		shoulder_mesh.size = Vector3(size.x, 0.06, size.z + 0.9) if size.x > size.z else Vector3(size.x + 0.9, 0.06, size.z)
+		shoulder.mesh = shoulder_mesh
+		shoulder.position = center + Vector3(0, -0.035, 0)
+		shoulder.material_override = _mat(Color(0.34, 0.31, 0.23), 0.0, 1.0)
+		add_child(shoulder)
+		break
+
+func _add_crop_field(center: Vector3, field_size: Vector2, crop_color: Color) -> void:
+	var plot := MeshInstance3D.new()
+	var plot_mesh := PlaneMesh.new()
+	plot_mesh.size = field_size
+	plot.mesh = plot_mesh
+	plot.position = center
+	plot.material_override = _mat(crop_color.darkened(0.18), 0.0, 1.0)
+	add_child(plot)
+	var rows := MultiMesh.new()
+	rows.transform_format = MultiMesh.TRANSFORM_3D
+	var stalk := BoxMesh.new()
+	stalk.size = Vector3(0.18, 0.42, 0.11)
+	rows.mesh = stalk
+	rows.instance_count = 360
+	for i in range(rows.instance_count):
+		var col := i % 20
+		var row := i / 20
+		var px := -field_size.x * 0.44 + float(col) * field_size.x * 0.88 / 19.0
+		var pz := -field_size.y * 0.43 + float(row) * field_size.y * 0.86 / 17.0
+		var basis := Basis(Vector3.UP, randf_range(-0.12, 0.12)).scaled(Vector3.ONE * randf_range(0.8, 1.25))
+		rows.set_instance_transform(i, Transform3D(basis, Vector3(px, 0.22, pz)))
+	var crop_mesh := MultiMeshInstance3D.new()
+	crop_mesh.multimesh = rows
+	crop_mesh.position = center
+	crop_mesh.material_override = _mat(crop_color.lightened(0.18), 0.0, 0.9)
+	add_child(crop_mesh)
+
+func _add_tree(pos: Vector3, scale_factor: float) -> void:
+	var tree := Node3D.new()
+	tree.position = pos
+	tree.scale = Vector3.ONE * scale_factor
+	add_child(tree)
+	var trunk := MeshInstance3D.new()
+	var trunk_mesh := CylinderMesh.new()
+	trunk_mesh.top_radius = 0.22
+	trunk_mesh.bottom_radius = 0.38
+	trunk_mesh.height = 2.7
+	trunk.mesh = trunk_mesh
+	trunk.position.y = 1.25
+	trunk.material_override = _mat(Color(0.25, 0.17, 0.10), 0.0, 1.0)
+	tree.add_child(trunk)
+	for layer in range(3):
+		var crown := MeshInstance3D.new()
+		var crown_mesh := CylinderMesh.new()
+		crown_mesh.top_radius = 0.05
+		crown_mesh.bottom_radius = 1.65 - float(layer) * 0.24
+		crown_mesh.height = 2.0
+		crown_mesh.radial_segments = 7
+		crown.mesh = crown_mesh
+		crown.position.y = 2.25 + float(layer) * 0.82
+		crown.material_override = _mat([Color(0.12,0.22,0.12), Color(0.16,0.27,0.14), Color(0.20,0.30,0.16)][layer], 0.0, 1.0)
+		tree.add_child(crown)
+
+func _add_rock(pos: Vector3, size: float) -> void:
+	var rock := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = size * randf_range(0.18, 0.42)
+	mesh.bottom_radius = size
+	mesh.height = size * randf_range(0.8, 1.45)
+	mesh.radial_segments = 7
+	mesh.rings = 2
+	rock.mesh = mesh
+	rock.position = pos + Vector3(0, mesh.height * 0.45, 0)
+	rock.rotation_degrees = Vector3(randf_range(-9, 9), randf_range(0, 360), randf_range(-12, 12))
+	rock.material_override = _mat(Color(0.28, 0.28, 0.25), 0.0, 1.0)
+	add_child(rock)
 
 func _build_landscape_details() -> void:
 	# Layered low-poly terrain silhouettes around the playable area.
@@ -299,16 +432,37 @@ func _make_tank(pos: Vector3, color: Color, team: int) -> Node3D:
 		visual.scale = Vector3(1.0, 1.0, 1.0)
 		tank.add_child(visual)
 	else:
-		_box(tank,Vector3(3.35,0.8,4.7),Vector3(0,0.8,0),color)
-		_box(tank,Vector3(2.15,0.72,2.35),Vector3(0,1.48,-0.15),color.lightened(0.12))
-		_cylinder(tank,0.82,0.22,Vector3(0,1.88,-0.1),Color(0.16,0.17,0.15))
-		_box(tank,Vector3(0.38,0.38,3.4),Vector3(0,1.65,-2.0),Color(0.17,0.18,0.16))
-		for side in [-1.0,1.0]:
-			_box(tank,Vector3(0.48,0.72,4.9),Vector3(side*1.82,0.58,0),Color(0.12,0.13,0.12))
-			for wheel in range(5):
-				_cylinder(tank,0.34,0.16,Vector3(side*2.08,0.52,-1.75+wheel*0.86),Color(0.09,0.10,0.09))
+		_build_detailed_tank(tank, color)
 	units.append(tank)
 	return tank
+
+
+func _build_detailed_tank(tank: Node3D, paint: Color) -> void:
+	# Layered hull, continuous track guards, individually visible road wheels and a detailed turret.
+	_box(tank, Vector3(3.55, 0.72, 4.85), Vector3(0, 0.92, 0), paint.darkened(0.08))
+	_box(tank, Vector3(3.0, 0.24, 3.8), Vector3(0, 1.36, 0.05), paint.lightened(0.08))
+	for side in [-1.0, 1.0]:
+		_box(tank, Vector3(0.52, 0.82, 4.95), Vector3(side * 1.86, 0.60, 0), Color(0.105,0.115,0.105))
+		for wheel in range(7):
+			var wz := -2.0 + float(wheel) * 0.66
+			_cylinder(tank, 0.37, 0.18, Vector3(side * 2.14, 0.57, wz), Color(0.16,0.17,0.15))
+			_cylinder(tank, 0.16, 0.195, Vector3(side * 2.15, 0.57, wz), Color(0.36,0.36,0.31))
+		_box(tank, Vector3(0.12,0.12,4.35), Vector3(side * 2.14,1.02,0), Color(0.27,0.28,0.24))
+	_box(tank, Vector3(2.55,0.58,2.55), Vector3(0,1.72,-0.12), paint.lightened(0.12))
+	_cylinder(tank, 0.92, 0.22, Vector3(0,2.06,-0.12), Color(0.15,0.16,0.14))
+	_box(tank, Vector3(1.72,0.62,1.72), Vector3(0,2.34,-0.15), paint)
+	_cylinder(tank, 0.22, 3.15, Vector3(0,2.42,-2.05), Color(0.16,0.17,0.15))
+	_cylinder(tank, 0.27, 0.42, Vector3(0,2.42,-3.58), Color(0.11,0.12,0.11))
+	_box(tank, Vector3(0.52,0.34,0.62), Vector3(0.52,2.78,0.22), paint.darkened(0.12))
+	_cylinder(tank, 0.28, 0.12, Vector3(-0.48,2.72,-0.25), Color(0.12,0.13,0.12))
+	for side in [-1.0,1.0]:
+		var lamp := MeshInstance3D.new()
+		var lamp_mesh := SphereMesh.new()
+		lamp_mesh.radius = 0.12
+		lamp.mesh = lamp_mesh
+		lamp.position = Vector3(side * 1.22,1.22,-2.40)
+		lamp.material_override = _mat(Color(0.82,0.72,0.42),0.1,0.25)
+		tank.add_child(lamp)
 
 func _make_guard_tower(pos: Vector3, team: int) -> void:
 	if guard_tower_scene == null:
